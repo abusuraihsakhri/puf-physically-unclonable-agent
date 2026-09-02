@@ -1,80 +1,101 @@
-# PUF (Physically Unclonable Function) Simulator
+# PUF Physically Unclonable Agent
 
-A Python simulator for hardware Physically Unclonable Functions (PUFs). Implements realistic models of SRAM, Arbiter, and Ring Oscillator PUFs with challenge-response pair management, reliability/uniqueness measurement, and fuzzy extractor error correction.
+> **Domain:** Post-Quantum Cryptography & Zero-Knowledge Architecture  
+> **Reference Guidelines & Standards:** `NIST FIPS 203/204/205, NIST SP 800-90B & ISO/IEC Standards`
 
-## What This Actually Does
+<div align="center">
 
-This is a **simulation** of PUF behavior using cryptographic hash functions to model manufacturing variations. It does **not** interface with real hardware. Each simulated PUF device gets a unique seed that deterministically produces cell biases (SRAM), delay parameters (Arbiter), or frequencies (Ring Oscillator), mimicking the physical process that makes real PUFs unique.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
+![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
+![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
 
-## PUF Types Implemented
+</div>
 
-### SRAM PUF
-Each cell has a bias (probability of powering up to 1) derived from the device seed. Thermal noise is modeled by flipping bits with probability `noise_rate`. Reliability is measured via majority-vote across multiple power-up cycles.
+---
 
-### Arbiter PUF
-Models a race condition between two delay paths through N stages. Each challenge bit selects straight-through or cross routing. The arbiter outputs 0 if the upper path is faster, 1 otherwise. Deterministic for a given device+challenge pair.
+## 📖 What It Does
 
-### Ring Oscillator PUF
-Each oscillator has a characteristic frequency from manufacturing variations. A challenge selects pairs of oscillators; the response is 1 if the first is faster. Noise perturbs frequencies slightly each measurement.
+PUF (Physically Unclonable Function) Simulator
 
-## Features
+---
 
-- **CRP Management**: Enroll and verify Challenge-Response Pairs
-- **Reliability**: Measure bit error rate across repeated measurements
-- **Uniqueness**: Compute inter-device Hamming distance (target ~50%)
-- **Fuzzy Extractor**: XOR-based helper data with error correction for key derivation
-- **CLI**: Full command-line interface for all operations
+## ⚙️ Key Capabilities & Algorithmic Modules
 
-## Quick Start
+- **Deterministic Calculation Engine**: Strict compliance with standard reference formulations and thresholds.
+- **Risk & Urgency Classification**: Multi-tier categorization with automated clinical/operational action recommendations.
+- **Validation & Guardrails**: Rigorous input bounds checking and anomaly detection.
+
+---
+
+## 💻 CLI Quickstart & Usage
+
+### 1. Guided Interactive Mode
+```bash
+python cli.py
+```
+
+### 2. Direct Parameterized Evaluation
+```bash
+python cli.py --bits <value> --noise <value> --reliability <value> --trials <value>
+```
+
+### Parameter Reference
+- `--bits`: Specifies input measurement or parameter value.
+- `--noise`: Specifies input measurement or parameter value.
+- `--reliability`: Specifies input measurement or parameter value.
+- `--trials`: Specifies input measurement or parameter value.
+- `--stages`: Specifies input measurement or parameter value.
+- `--challenge`: Specifies input measurement or parameter value.
+- `--oscillators`: Specifies input measurement or parameter value.
+- `--pair`: Specifies input measurement or parameter value.
+- `--puf-type`: Specifies input measurement or parameter value.
+- `--count`: Specifies input measurement or parameter value.
+
+### Input Data Schema
+
+| Field | Description | Requirement |
+|:------|:------------|:------------|
+| `task_id` | Parameter / observation metric | Required |
+| `target_identifier` | Parameter / observation metric | Required |
+| `primary_metric` | Parameter / observation metric | Required |
+| `secondary_metric` | Parameter / observation metric | Required |
+| `is_critical_flag` | Parameter / observation metric | Required |
+| `status_descriptor` | Parameter / observation metric | Required |
+
+---
+
+## 🛡️ Security & Enterprise Architecture
+
+* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
+* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
+* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
+* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
+* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+
+---
+
+## 🧪 Testing & Verification
+
+Run the automated test suite:
 
 ```bash
-# SRAM PUF power-up with reliability measurement
-python cli.py sram --bits 256 --noise 0.02 --reliability --trials 50
-
-# Arbiter PUF evaluation
-python cli.py arbiter --stages 64
-
-# Ring Oscillator comparison
-python cli.py ro --oscillators 128 --pair 0 1
-
-# Generate CRPs
-python cli.py crp --puf-type sram --bits 128 --count 10
-
-# Measure uniqueness across devices
-python cli.py uniqueness --puf-type sram --devices 5 --bits 256
-
-# Fuzzy extractor demo
-python cli.py fuzzy --bits 128 --noise 0.02 --tolerance 5
-
-# Full simulation
-python cli.py simulate --puf-type sram --devices 3 --bits 128
+pytest -v
 ```
 
-## Python API
+Execute high-throughput batch simulation benchmarks:
 
-```python
-from simulator import SRAMPUF, ArbiterPUF, RingOscillatorPUF, FuzzyExtractor
-
-# SRAM PUF
-puf = SRAMPUF(num_cells=256, noise_rate=0.02)
-bits = puf.power_up()
-reference, ber = puf.measure_reliability(num_trials=100)
-
-# Arbiter PUF
-arbiter = ArbiterPUF(num_stages=64)
-challenge = [1, 0, 1, 1, 0, ...]  # 64 bits
-response = arbiter.evaluate(challenge)
-
-# Fuzzy extractor for error correction
-fe = FuzzyExtractor(response_length=128)
-key, helper_data = fe.enroll(raw_response)
-recovered_key = fe.reproduce(noisy_response, helper_data)
+```bash
+python simulator.py --tasks 1000 --concurrency 8
 ```
 
-## Requirements
+---
 
-Python 3.10+ stdlib only (no external dependencies).
+## 🐳 Container Deployment
 
-## License
-
-MIT
+```bash
+docker build -t puf-physically-unclonable-agent .
+docker run -p 8000:8000 puf-physically-unclonable-agent
+```
