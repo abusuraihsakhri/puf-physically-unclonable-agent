@@ -69,8 +69,9 @@ class SRAMPUF:
     On real hardware, each SRAM cell powers up to 0 or 1 depending on
     manufacturing variations (transistor threshold voltage mismatch).
     The simulator models this with a per-cell bias derived from a device
-    seed.  Repeated measurements flip bits with probability = noise_rate
-    to model thermal noise.
+    seed.  Each cell has a deterministic preferred state (bias > 0.5 => 1,
+    bias <= 0.5 => 0).  Repeated measurements flip bits with probability
+    = noise_rate to model thermal noise.
     """
 
     def __init__(self, num_cells: int = 256, device_seed: Optional[int] = None,
@@ -86,9 +87,10 @@ class SRAMPUF:
     def _generate_biases(self) -> List[float]:
         """Generate per-cell power-up bias from device seed."""
         biases = []
+        seed_bytes = self._seed.to_bytes(16, 'big')
         for i in range(self.num_cells):
             h = hashlib.sha256(
-                struct.pack('<Q', self._seed) + struct.pack('<I', i)
+                seed_bytes + struct.pack('<I', i)
             ).digest()
             # Use first 4 bytes as a 32-bit float proxy
             val = int.from_bytes(h[:4], 'big') / 0xFFFFFFFF
@@ -98,11 +100,15 @@ class SRAMPUF:
         return biases
 
     def power_up(self) -> List[int]:
-        """Simulate one power-up cycle. Returns list of 0/1 bits."""
+        """Simulate one power-up cycle. Returns list of 0/1 bits.
+
+        The base value is deterministic from the cell bias (bias > 0.5 => 1).
+        Noise flips bits with probability = noise_rate to model thermal noise.
+        """
         bits = []
         for i in range(self.num_cells):
-            # Base value from bias
-            base = 1 if secrets.randbelow(10000) / 10000.0 < self._biases[i] else 0
+            # Base value: deterministic from bias (preferred power-up state)
+            base = 1 if self._biases[i] > 0.5 else 0
             # Noise flip
             if secrets.randbelow(10000) / 10000.0 < self.noise_rate:
                 base ^= 1
@@ -166,9 +172,10 @@ class ArbiterPUF:
     def _generate_stage_delays(self) -> List[Tuple[float, float]]:
         """Generate (delta_upper, delta_lower) for each stage from device seed."""
         stages = []
+        seed_bytes = self._seed.to_bytes(16, 'big')
         for i in range(self.num_stages):
             h = hashlib.sha256(
-                struct.pack('<Q', self._seed) + struct.pack('<I', i)
+                seed_bytes + struct.pack('<I', i)
             ).digest()
             # Two floats from hash
             du = (int.from_bytes(h[0:4], 'big') / 0xFFFFFFFF) * 2.0 - 1.0  # [-1, 1]
@@ -236,9 +243,10 @@ class RingOscillatorPUF:
     def _generate_frequencies(self) -> List[float]:
         """Generate characteristic frequency for each oscillator."""
         freqs = []
+        seed_bytes = self._seed.to_bytes(16, 'big')
         for i in range(self.num_oscillators):
             h = hashlib.sha256(
-                struct.pack('<Q', self._seed) + struct.pack('<I', i)
+                seed_bytes + struct.pack('<I', i)
             ).digest()
             # Map to frequency range [100 MHz, 200 MHz] with fine granularity
             val = int.from_bytes(h[:4], 'big') / 0xFFFFFFFF

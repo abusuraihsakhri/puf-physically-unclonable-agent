@@ -9,6 +9,7 @@ Provides commands for:
 """
 import argparse
 import json
+import secrets
 import sys
 
 from simulator import (
@@ -36,8 +37,10 @@ def cmd_sram(args):
 def cmd_arbiter(args):
     """Simulate an Arbiter PUF evaluation."""
     puf = ArbiterPUF(num_stages=args.stages, noise_sigma=args.noise)
-    challenge = [1 if c == '1' else 0 for c in args.challenge] if args.challenge else \
-        [int(b) for b in __import__('secrets').token_bytes((args.stages + 7) // 8).hex()]
+    if args.challenge:
+        challenge = [1 if c == '1' else 0 for c in args.challenge]
+    else:
+        challenge = [secrets.randbelow(2) for _ in range(args.stages)]
     # Ensure correct length
     if len(challenge) < args.stages:
         challenge.extend([0] * (args.stages - len(challenge)))
@@ -73,7 +76,6 @@ def cmd_crp(args):
         puf = RingOscillatorPUF(num_oscillators=args.bits, noise_rate=args.noise)
 
     db = CRPDatabase()
-    import secrets
     for i in range(args.count):
         if args.puf_type == 'sram':
             challenge = [secrets.randbelow(2) for _ in range(args.bits)]
@@ -100,7 +102,6 @@ def cmd_crp(args):
 def cmd_uniqueness(args):
     """Measure inter-device uniqueness."""
     responses = []
-    import secrets
     for i in range(args.devices):
         if args.puf_type == 'sram':
             puf = SRAMPUF(num_cells=args.bits, noise_rate=0.0)
