@@ -37,14 +37,12 @@ def cmd_sram(args):
 def cmd_arbiter(args):
     """Simulate an Arbiter PUF evaluation."""
     puf = ArbiterPUF(num_stages=args.stages, noise_sigma=args.noise)
-    if args.challenge:
-        challenge = [1 if c == '1' else 0 for c in args.challenge]
+    if args.challenge is not None:
+        if len(args.challenge) != args.stages or any(c not in "01" for c in args.challenge):
+            raise ValueError(f"Challenge must contain exactly {args.stages} binary digits")
+        challenge = [int(c) for c in args.challenge]
     else:
         challenge = [secrets.randbelow(2) for _ in range(args.stages)]
-    # Ensure correct length
-    if len(challenge) < args.stages:
-        challenge.extend([0] * (args.stages - len(challenge)))
-    challenge = challenge[:args.stages]
     response = puf.evaluate(challenge)
     print(f"Arbiter PUF ({args.stages} stages):")
     print(f"  Challenge: {''.join(str(b) for b in challenge[:32])}...")
@@ -85,9 +83,11 @@ def cmd_crp(args):
             response = [puf.evaluate(challenge)]
         else:
             challenge = [secrets.randbelow(2) for _ in range(args.bits)]
-            pairs = [(challenge[j] % puf.num_oscillators,
-                       challenge[j+1] % puf.num_oscillators)
-                      for j in range(0, len(challenge)-1, 2)]
+            pairs = []
+            for j in range(0, len(challenge) - 1, 2):
+                a = j % puf.num_oscillators
+                b = (j + 1) % puf.num_oscillators
+                pairs.append((b, a) if challenge[j] else (a, b))
             response = puf.evaluate_challenge(pairs)
         db.enroll(challenge, response)
 
@@ -100,30 +100,14 @@ def cmd_crp(args):
 
 
 def cmd_uniqueness(args):
-    """Measure inter-device uniqueness."""
-    responses = []
-    for i in range(args.devices):
-        if args.puf_type == 'sram':
-            puf = SRAMPUF(num_cells=args.bits, noise_rate=0.0)
-        elif args.puf_type == 'arbiter':
-            puf = ArbiterPUF(num_stages=args.bits, noise_sigma=0.0)
-        else:
-            puf = RingOscillatorPUF(num_oscillators=args.bits, noise_rate=0.0)
-
-        if args.puf_type == 'sram':
-            resp = puf.power_up()
-        elif args.puf_type == 'arbiter':
-            challenge = [secrets.randbelow(2) for _ in range(args.bits)]
-            resp = [puf.evaluate(challenge)]
-        else:
-            challenge = [secrets.randbelow(2) for _ in range(args.bits)]
-            pairs = [(challenge[j] % puf.num_oscillators,
-                       challenge[j+1] % puf.num_oscillators)
-                      for j in range(0, len(challenge)-1, 2)]
-            resp = puf.evaluate_challenge(pairs)
-        responses.append(resp)
-
-    uniqueness = compute_uniqueness(responses)
+    """Measure inter-device uniqueness under shared challenges."""
+    sim = PUFSimulator(
+        puf_type=args.puf_type,
+        num_devices=args.devices,
+        response_bits=args.bits,
+        noise_rate=0.0,
+    )
+    uniqueness = sim.measure_uniqueness(num_crps=30)
     print(f"Uniqueness ({args.devices} devices, {args.puf_type}, {args.bits} bits):")
     print(f"  Average inter-device Hamming distance: {uniqueness:.4f} ({uniqueness*100:.2f}%)")
     print(f"  Target: ~50% | {'GOOD' if 0.35 <= uniqueness <= 0.65 else 'SUBOPTIMAL'}")
@@ -142,11 +126,16 @@ def cmd_fuzzy(args):
 
     # Reproduce with a noisy reading
     noisy = puf.power_up()
-    recovered = fe.reproduce(noisy, helper)
+    try:
+        recovered = fe.reproduce(noisy, helper)
+    except ValueError as exc:
+        print(f"  Reproduction failed: {exc}")
+        print("  Match:         NO")
+        return 0
     hd = _hamming_distance(key, recovered)
     match = hd == 0
     print(f"  Recovered key: {_bits_to_bytes(recovered).hex()[:32]}...")
-    print(f"  Bit errors:    {hd}/{args.bits}")
+    print(f"  Reconstructed codeword errors: {hd}/{args.bits}")
     print(f"  Match:         {'YES' if match else 'NO'}")
     return 0
 

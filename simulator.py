@@ -48,8 +48,29 @@ def _bytes_to_bits(data: bytes) -> List[int]:
 
 
 def _hamming_distance(a: List[int], b: List[int]) -> int:
-    """Count differing bits between two bit lists."""
+    """Count differing bits; incompatible lengths are an error, not a partial match."""
+    if len(a) != len(b):
+        raise ValueError("Bit vectors must have the same length")
     return sum(x != y for x, y in zip(a, b))
+
+
+def _positive_int(value: int, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def _device_seed(seed: Optional[int]) -> int:
+    if seed is None:
+        return secrets.randbits(128)
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**128:
+        raise ValueError("device_seed must be a 128-bit unsigned integer")
+    return seed
+
+
+def _bits(bits: List[int], name: str) -> None:
+    if not bits or any(type(b) is not int or b not in (0, 1) for b in bits):
+        raise ValueError(f"{name} must contain one or more binary bits")
 
 
 def _seed_from_challenge(challenge: bytes, device_id: bytes) -> int:
@@ -76,11 +97,12 @@ class SRAMPUF:
 
     def __init__(self, num_cells: int = 256, device_seed: Optional[int] = None,
                  noise_rate: float = 0.02):
+        _positive_int(num_cells, "num_cells")
         if not 0.0 <= noise_rate <= 0.5:
             raise ValueError("noise_rate must be in [0.0, 0.5]")
         self.num_cells = num_cells
         self.noise_rate = noise_rate
-        self._seed = device_seed if device_seed is not None else secrets.randbits(128)
+        self._seed = _device_seed(device_seed)
         # Generate per-cell bias from seed.  Bias > 0.5 => cell tends to 1.
         self._biases = self._generate_biases()
 
@@ -163,9 +185,12 @@ class ArbiterPUF:
 
     def __init__(self, num_stages: int = 64, device_seed: Optional[int] = None,
                  noise_sigma: float = 0.0):
+        _positive_int(num_stages, "num_stages")
+        if not 0.0 <= noise_sigma < float("inf"):
+            raise ValueError("noise_sigma must be finite and non-negative")
         self.num_stages = num_stages
         self.noise_sigma = noise_sigma
-        self._seed = device_seed if device_seed is not None else secrets.randbits(128)
+        self._seed = _device_seed(device_seed)
         # Generate per-stage delay parameters
         self._delta_delays = self._generate_stage_delays()
 
@@ -191,6 +216,7 @@ class ArbiterPUF:
         """
         if len(challenge) != self.num_stages:
             raise ValueError(f"Challenge must be {self.num_stages} bits")
+        _bits(challenge, "challenge")
 
         # Accumulate delay difference
         delta_upper = 0.0
@@ -235,9 +261,14 @@ class RingOscillatorPUF:
 
     def __init__(self, num_oscillators: int = 128, device_seed: Optional[int] = None,
                  noise_rate: float = 0.01):
+        if num_oscillators < 2:
+            raise ValueError("num_oscillators must be at least 2")
+        _positive_int(num_oscillators, "num_oscillators")
+        if not 0.0 <= noise_rate < float("inf"):
+            raise ValueError("noise_rate must be finite and non-negative")
         self.num_oscillators = num_oscillators
         self.noise_rate = noise_rate
-        self._seed = device_seed if device_seed is not None else secrets.randbits(128)
+        self._seed = _device_seed(device_seed)
         self._frequencies = self._generate_frequencies()
 
     def _generate_frequencies(self) -> List[float]:
@@ -288,58 +319,53 @@ class RingOscillatorPUF:
 # ---------------------------------------------------------------------------
 
 class CRPDatabase:
-    """
-    Manages Challenge-Response Pairs for a PUF instance.
+    """In-memory challenge-response enrollment and Hamming-distance verification.
 
-    Supports:
-    - Enrollment: store reference CRPs
-    - Verification: check if a response matches the enrolled response
-    - Export / import for attestation
+    Original bit lengths are retained to distinguish byte-padded challenges.
+    Export uses packed bytes for compatibility; it does not encode bit lengths.
     """
 
     def __init__(self):
-        self._crps: Dict[bytes, bytes] = {}  # challenge_bytes -> response_bytes
-        self._challenge_bits: Dict[bytes, List[int]] = {}
+        self._crps: Dict[Tuple[bytes, int], Tuple[bytes, int]] = {}
+        self._challenge_bits: Dict[Tuple[bytes, int], List[int]] = {}
+
+    @staticmethod
+    def _key(challenge: List[int]) -> Tuple[bytes, int]:
+        _bits(challenge, "challenge")
+        return _bits_to_bytes(challenge), len(challenge)
 
     def enroll(self, challenge: List[int], response: List[int]) -> None:
-        """Store a challenge-response pair."""
-        c_bytes = _bits_to_bytes(challenge)
-        r_bytes = _bits_to_bytes(response)
-        self._crps[c_bytes] = r_bytes
-        self._challenge_bits[c_bytes] = list(challenge)
+        _bits(response, "response")
+        key = self._key(challenge)
+        self._crps[key] = (_bits_to_bytes(response), len(response))
+        self._challenge_bits[key] = list(challenge)
 
     def verify(self, challenge: List[int], response: List[int],
                max_bit_errors: int = 0) -> Tuple[bool, int]:
-        """
-        Verify a response against the enrolled reference.
-
-        Returns (match: bool, hamming_distance: int).
-        """
-        c_bytes = _bits_to_bytes(challenge)
-        if c_bytes not in self._crps:
-            raise KeyError("Challenge not found in CRP database")
-        ref_response = _bytes_to_bits(self._crps[c_bytes])
-        hd = _hamming_distance(ref_response, response[:len(ref_response)])
+        if max_bit_errors < 0:
+            raise ValueError("max_bit_errors must be non-negative")
+        _bits(response, "response")
+        reference = self.get_response(challenge)
+        hd = _hamming_distance(reference, response)
         return hd <= max_bit_errors, hd
 
     def get_response(self, challenge: List[int]) -> List[int]:
-        """Get the enrolled response for a challenge."""
-        c_bytes = _bits_to_bytes(challenge)
-        if c_bytes not in self._crps:
+        key = self._key(challenge)
+        if key not in self._crps:
             raise KeyError("Challenge not found in CRP database")
-        return _bytes_to_bits(self._crps[c_bytes])
+        packed, length = self._crps[key]
+        return _bytes_to_bits(packed)[:length]
 
     @property
     def size(self) -> int:
         return len(self._crps)
 
     def export_crps(self) -> List[Tuple[bytes, bytes]]:
-        """Export all CRPs as (challenge_bytes, response_bytes) tuples."""
-        return [(c, r) for c, r in self._crps.items()]
+        """Export packed CRPs (bit lengths are not represented in this format)."""
+        return [(challenge[0], packed) for challenge, (packed, _) in self._crps.items()]
 
     def challenges(self) -> List[List[int]]:
-        """Return all enrolled challenges as bit lists."""
-        return [self._challenge_bits[c] for c in self._crps]
+        return [list(self._challenge_bits[c]) for c in self._crps]
 
 
 # ---------------------------------------------------------------------------
@@ -347,123 +373,92 @@ class CRPDatabase:
 # ---------------------------------------------------------------------------
 
 class FuzzyExtractor:
-    """
-    Implements a fuzzy extractor for PUF error correction.
+    """Educational code-offset reconstruction using a repetition code.
 
-    Enrollment:
-        1. Generate random helper value W
-        2. Store W = R XOR hash(Gen_seed || index)  where R is the raw PUF response
-        3. Store a syndrome for BCH-like error correction
+    Enrolls a random repeated codeword C, publishing helper data R XOR C.
+    A fresh noisy PUF reading R' gives C XOR noise, which is decoded by
+    majority vote. The previous XOR-with-public-fixed-pad scheme leaked R
+    directly and performed no error correction.
 
-    Reproduction:
-        1. Read noisy PUF response R'
-        2. Use helper data W to recover R
-
-    This implementation uses a simplified XOR-based helper data scheme
-    with a repetition code for error correction (practical for simulation).
+    This is not a production-grade fuzzy extractor: repetition codes have
+    low efficiency and no entropy estimation or security proof is provided.
     """
 
     def __init__(self, response_length: int, error_tolerance: int = 5,
                  num_repetitions: int = 3):
-        """
-        Args:
-            response_length: number of bits in the PUF response
-            error_tolerance: max number of bit errors to correct
-            num_repetitions: repetition factor for majority-vote correction
-        """
+        _positive_int(response_length, "response_length")
+        if isinstance(num_repetitions, bool) or not isinstance(num_repetitions, int) or num_repetitions < 3 or num_repetitions % 2 != 1:
+            raise ValueError("num_repetitions must be an odd integer >= 3")
+        if response_length < num_repetitions:
+            raise ValueError("response_length must be at least num_repetitions")
+        if isinstance(error_tolerance, bool) or not isinstance(error_tolerance, int) or error_tolerance < 0:
+            raise ValueError("error_tolerance must be a non-negative integer")
         self.response_length = response_length
         self.error_tolerance = error_tolerance
         self.num_repetitions = num_repetitions
         self._helper_data: Optional[bytes] = None
         self._enrolled_key: Optional[List[int]] = None
 
-    def _hash_index(self, index: int) -> List[int]:
-        """Generate a pseudo-random bit stream for XOR masking."""
-        h = hashlib.sha256(struct.pack('<I', index)).digest()
-        return _bytes_to_bits(h)[:self.response_length]
+    def _block_sizes(self) -> List[int]:
+        count, remainder = divmod(self.response_length, self.num_repetitions)
+        return [self.num_repetitions] * (count - 1) + [self.num_repetitions + remainder]
 
     def enroll(self, raw_response: List[int]) -> Tuple[List[int], bytes]:
-        """
-        Enroll a PUF response.
-
-        Returns (reconstructed_key, helper_data_bytes).
-        The helper data must be stored alongside the device.
-        """
         if len(raw_response) < self.response_length:
             raise ValueError("Response too short")
-
-        # Take first response_length bits
         r = raw_response[:self.response_length]
+        _bits(r, "raw_response")
 
-        # Generate helper data: XOR with a known random pad
-        # In a real fuzzy extractor this would use a secure sketch
-        pad = self._hash_index(0)
-        helper = [r[i] ^ pad[i] for i in range(self.response_length)]
+        codeword: List[int] = []
+        for size in self._block_sizes():
+            codeword.extend([secrets.randbelow(2)] * size)
+        helper = [r[i] ^ codeword[i] for i in range(self.response_length)]
 
         self._helper_data = _bits_to_bytes(helper)
-        self._enrolled_key = list(r)
-        return list(r), self._helper_data
+        self._enrolled_key = list(codeword)
+        return list(codeword), self._helper_data
 
     def reproduce(self, noisy_response: List[int], helper_data: bytes) -> List[int]:
-        """
-        Reproduce the key from a noisy response and helper data.
-
-        Uses XOR with helper data to recover the original, then applies
-        majority-vote error correction if multiple readings are available.
-        """
         if len(noisy_response) < self.response_length:
             raise ValueError("Response too short")
+        if len(helper_data) != (self.response_length + 7) // 8:
+            raise ValueError("Invalid helper data length")
+        reading = noisy_response[:self.response_length]
+        _bits(reading, "noisy_response")
+        helper = _bytes_to_bits(helper_data)[:self.response_length]
+        encoded = [reading[i] ^ helper[i] for i in range(self.response_length)]
 
-        r_prime = noisy_response[:self.response_length]
-        helper_bits = _bytes_to_bits(helper_data)[:self.response_length]
-        pad = self._hash_index(0)
+        recovered: List[int] = []
+        offset = 0
+        for size in self._block_sizes():
+            block = encoded[offset:offset + size]
+            ones = sum(block)
+            if ones * 2 == size:
+                raise ValueError("Ambiguous repetition block: equal number of zeros and ones")
+            recovered.extend([int(ones * 2 > size)] * size)
+            offset += size
 
-        # Recover: R' XOR helper XOR pad = R' XOR R XOR pad XOR pad = R' XOR R XOR 0
-        # Actually: helper = R XOR pad, so R' XOR helper = R' XOR R XOR pad
-        # Then XOR with pad: R' XOR R XOR pad XOR pad = R' XOR R
-        # That's not right. Let me redo:
-        # helper = R XOR pad
-        # R' XOR helper = R' XOR R XOR pad
-        # We need to XOR with pad to get R' XOR R, but that's the error pattern.
-        # Instead: R' XOR helper XOR pad = R' XOR (R XOR pad) XOR pad = R' XOR R
-        # The recovered value should be R, not R' XOR R.
-        #
-        # Correct approach: helper = R XOR pad
-        # Recovery: R_recovered = R' XOR helper XOR pad = R' XOR R XOR pad XOR pad = R' XOR R
-        # That gives the error pattern, not R.
-        #
-        # The correct fuzzy extractor XOR scheme:
-        # Enrollment: helper = R XOR pad
-        # Recovery: R_recovered = helper XOR pad = R XOR pad XOR pad = R
-        # But we need to handle noise in R' first.
-        #
-        # Simple approach: use helper = R XOR pad
-        # Recovery without noise: R = helper XOR pad
-        # With noise: R' = R XOR noise, so helper XOR pad XOR noise = R XOR noise
-        # We need to correct noise first.
-        #
-        # For this simulation, we'll use a two-step approach:
-        # 1. Use repetition code to get a clean reading
-        # 2. Then apply helper data
-
-        # Step 1: XOR with helper to get pad XOR error
-        recovered = [r_prime[i] ^ helper_bits[i] for i in range(self.response_length)]
-        # recovered = R' XOR R XOR pad = noise XOR pad
-        # XOR with pad to get noise
-        noise = [recovered[i] ^ pad[i] for i in range(self.response_length)]
-        # Now noise = R' XOR R (the error pattern)
-        # Recover R = R' XOR noise
-        result = [r_prime[i] ^ noise[i] for i in range(self.response_length)]
-
-        return result
+        if _hamming_distance(encoded, recovered) > self.error_tolerance:
+            raise ValueError("Noise exceeds error tolerance")
+        return recovered
 
     def generate_key(self, response: List[int], key_length: int = 128) -> bytes:
-        """Derive a cryptographic key from a PUF response using HKDF-like extraction."""
+        """Illustrative HMAC-based key expansion; output entropy is not guaranteed."""
+        if len(response) < self.response_length:
+            raise ValueError("Response too short")
+        _bits(response[:self.response_length], "response")
+        if not isinstance(key_length, int) or isinstance(key_length, bool) or key_length < 8 or key_length % 8 or key_length > 255 * 256:
+            raise ValueError("key_length must be 8..65280 bits and divisible by 8")
         response_bytes = _bits_to_bytes(response[:self.response_length])
-        # Use HMAC-based extraction
-        prk = hmac.new(b'puf-key-extract', response_bytes, hashlib.sha256).digest()
-        okm = hmac.new(prk, b'\x01', hashlib.sha256).digest()
-        return okm[:key_length // 8]
+        prk = hmac.new(b"puf-key-extract", response_bytes, hashlib.sha256).digest()
+        out = bytearray()
+        block = b""
+        counter = 1
+        while len(out) < key_length // 8:
+            block = hmac.new(prk, block + b"puf-simulation-key" + bytes([counter]), hashlib.sha256).digest()
+            out.extend(block)
+            counter += 1
+        return bytes(out[:key_length // 8])
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +480,9 @@ def compute_uniqueness(devices_responses: List[List[int]]) -> float:
     n = len(devices_responses)
     if n < 2:
         raise ValueError("Need at least 2 devices for uniqueness computation")
+    bit_len = len(devices_responses[0])
+    if bit_len == 0 or any(len(r) != bit_len for r in devices_responses):
+        raise ValueError("All device responses must have the same nonzero length")
 
     total_hd = 0
     total_pairs = 0
@@ -494,8 +492,7 @@ def compute_uniqueness(devices_responses: List[List[int]]) -> float:
             total_hd += hd
             total_pairs += 1
 
-    bit_len = min(len(r) for r in devices_responses)
-    return (total_hd / total_pairs) / bit_len if total_pairs > 0 else 0.0
+    return (total_hd / total_pairs) / bit_len
 
 
 def compute_bit_error_rate(measurements: List[List[int]],
@@ -512,6 +509,8 @@ def compute_bit_error_rate(measurements: List[List[int]],
     """
     if not measurements:
         raise ValueError("Empty measurements list")
+    if not reference or any(len(m) != len(reference) for m in measurements):
+        raise ValueError("Measurements and reference must have the same nonzero length")
     total_errors = 0
     total_bits = 0
     for m in measurements:
@@ -535,6 +534,10 @@ class PUFSimulator:
         valid_types = ('sram', 'arbiter', 'ring_oscillator')
         if puf_type not in valid_types:
             raise ValueError(f"puf_type must be one of {valid_types}")
+        _positive_int(num_devices, "num_devices")
+        _positive_int(response_bits, "response_bits")
+        if puf_type == 'ring_oscillator' and response_bits < 2:
+            raise ValueError("Ring oscillator simulation needs at least 2 oscillators")
         self.puf_type = puf_type
         self.num_devices = num_devices
         self.response_bits = response_bits
@@ -564,10 +567,11 @@ class PUFSimulator:
         elif self.puf_type == 'arbiter':
             return [dev.evaluate(challenge)]
         else:  # ring_oscillator
+            # Use oscillator pairs spanning the whole device, not just indices 0/1.
             pairs = []
             for i in range(0, len(challenge) - 1, 2):
-                pairs.append((challenge[i] % dev.num_oscillators,
-                              challenge[i + 1] % dev.num_oscillators))
+                a, b = i % dev.num_oscillators, (i + 1) % dev.num_oscillators
+                pairs.append((b, a) if challenge[i] else (a, b))
             return dev.evaluate_challenge(pairs)
 
     def generate_challenge(self) -> List[int]:
@@ -594,21 +598,28 @@ class PUFSimulator:
             _, ber = dev.measure_reliability(num_trials)
             return ber
         else:
-            # For arbiter/RO, measure consistency across repeated evaluations
+            if num_trials < 2:
+                raise ValueError("Need at least 2 trials for reliability measurement")
             challenge = self.generate_challenge()
             responses = [self._generate_response(device_idx, challenge)
                          for _ in range(num_trials)]
-            reference = responses[0]
-            return compute_bit_error_rate(responses[1:], reference)
+            bit_count = len(responses[0])
+            reference = [int(sum(r[i] for r in responses) > num_trials / 2)
+                         for i in range(bit_count)]
+            return compute_bit_error_rate(responses, reference)
 
     def measure_uniqueness(self, num_crps: int = 10) -> float:
         """Measure inter-device uniqueness."""
-        responses = []
-        challenge = self.generate_challenge()
-        for i in range(self.num_devices):
-            resp = self._generate_response(i, challenge)
-            responses.append(resp)
-        return compute_uniqueness(responses)
+        _positive_int(num_crps, "num_crps")
+        if self.num_devices < 2:
+            raise ValueError("Need at least 2 devices for uniqueness computation")
+        scores = []
+        for _ in range(num_crps):
+            challenge = self.generate_challenge()
+            responses = [self._generate_response(i, challenge)
+                         for i in range(self.num_devices)]
+            scores.append(compute_uniqueness(responses))
+        return sum(scores) / len(scores)
 
     def get_device(self, device_idx: int):
         """Get the underlying PUF device."""

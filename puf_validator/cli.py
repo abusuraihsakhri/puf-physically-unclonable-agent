@@ -11,6 +11,18 @@ from .agents import PUFValidatorCoordinator
 coordinator = PUFValidatorCoordinator()
 
 
+def parse_boolean(value):
+    """Parse CSV boolean text rather than treating nonempty 'false' as true."""
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or "").strip().lower()
+    if normalized in ("", "0", "false", "no", "n"):
+        return False
+    if normalized in ("1", "true", "yes", "y"):
+        return True
+    raise ValueError(f"Unrecognized boolean value: {value!r}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="puf-physically-unclonable-agent", description="SRAM & Arbiter Physically Unclonable Function (PUF) Validator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -83,7 +95,7 @@ def main(argv=None):
                 primary_metric=float(r.get("primary_metric", 15.0)),
                 secondary_metric=float(r.get("secondary_metric", 5.0)),
                 status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
+                is_critical_flag=parse_boolean(r.get("is_critical_flag", False)),
             )
             dossier = coordinator.process(payload)
             row_dict = dict(r)

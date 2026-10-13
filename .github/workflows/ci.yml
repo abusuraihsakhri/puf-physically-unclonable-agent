@@ -1,4 +1,4 @@
-name: Puf Physically Unclonable Engine CI/CD & Security Verification
+name: PUF Python and browser test suite
 
 on:
   push:
@@ -24,17 +24,29 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
+        pip install -e ".[dev]"
+
+    - name: Check Python syntax
+      run: python -m compileall -q agents puf_validator cli.py simulator.py enrichment.py
 
     - name: Run Pytest Suite
-      run: |
-        pytest -v
+      run: pytest -v
 
-    - name: Security SAST & Zero-PHI Audit
+    - name: Check browser scripts
       run: |
-        python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
-        "
+        node --check web/app.js
+        node --test web/app.test.js
+
+    - name: Verify installed dependencies
+      run: python -m pip check
+
+    - name: Smoke-test audit signature validation
+      run: |
+        python - <<'PY'
+        from agents.base import AuditTrail
+        trail = AuditTrail(secret_key="test-only")
+        trail.log("worker", "local", "CHECK", {"status": "ok"})
+        assert trail.verify_integrity()
+        trail.logs[0]["actor"] = "tampered"
+        assert not trail.verify_integrity()
+        PY
