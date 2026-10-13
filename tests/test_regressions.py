@@ -105,3 +105,17 @@ def test_mock_provider_is_not_misrepresented_as_live_inference():
     assert "No model inference" in responder.invoke("status")
     with pytest.raises(ValueError, match="Unsupported provider"):
         LLMFactory.create("openai")
+
+
+def test_validator_rejects_nonfinite_measurements():
+    from puf_validator.engine import FrontierDomainEngine
+    with pytest.raises(ValueError, match="finite"):
+        FrontierDomainEngine.evaluate_primary_parameter(float("nan"))
+    with pytest.raises(ValueError, match="finite"):
+        FrontierDomainEngine.evaluate_secondary_kinetics(float("inf"), False)
+
+
+def test_identifier_guard_blocks_known_patterns():
+    from agents.base import PHIGuard, SecurityException
+    with pytest.raises(SecurityException):
+        PHIGuard.assert_no_phi("MRN:123456")
