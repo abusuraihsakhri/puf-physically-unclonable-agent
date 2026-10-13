@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "puf-physically-unclonable-engine"
+name = "puf-physically-unclonable-agent"
 version = "2.0.0"
 description = "SRAM & Arbiter Physically Unclonable Function (PUF) Validator"
 readme = "README.md"
-authors = [{ name = "Dr. Abu Suraih Sakhri", email = "abusuraih@example.com" }]
+authors = [{ name = "Dr. Abu Suraih Sakhri" }]
 license = { text = "MIT" }
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -23,6 +23,7 @@ dependencies = ["pydantic>=2,<3", "fastapi>=0.110,<1", "uvicorn>=0.25,<1"]
 dev = ["pytest>=8,<10"]
 
 [project.scripts]
+puf-simulator = "cli:main"
 puf-validator = "puf_validator.cli:main"
 puf-physically-unclonable-engine = "puf_validator.cli:main"
 
