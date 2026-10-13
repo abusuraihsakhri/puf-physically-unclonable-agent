@@ -29,3 +29,10 @@ puf-physically-unclonable-engine = "puf_validator.cli:main"
 [project.urls]
 Homepage = "https://github.com/abusuraihsakhri/puf-physically-unclonable-agent"
 Repository = "https://github.com/abusuraihsakhri/puf-physically-unclonable-agent.git"
+
+[tool.setuptools]
+packages = ["agents", "puf_validator"]
+py-modules = ["cli", "simulator", "enrichment", "puf_validator_app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
