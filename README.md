@@ -64,7 +64,7 @@ Available routes include `GET /health`, `GET /metrics`, `POST /api/audit`, `POST
 docker compose up --build
 ```
 
-The container runs `agents.api:app` on port 8000. Configure `AUDIT_SECRET_KEY` in the environment for consistent HMAC signatures across process restarts. The in-memory audit trail is **not durable storage**.
+The container runs `agents.api:app` on port 8000, bound to local loopback by default. The HTTP endpoints have no user authentication and must not be exposed publicly without a secure reverse proxy and access controls. Configure `AUDIT_SECRET_KEY` in the environment for consistent HMAC signatures across process restarts. The in-memory audit trail is **not durable storage**.
 
 ## Testing
 
