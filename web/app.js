@@ -85,6 +85,12 @@ function validate(config) {
     if (typeof config.seed !== "string" || config.seed.length > 100) {
         throw new RangeError("Seed must be a string of at most 100 characters");
     }
+    const bitsPerReading = config.type === "arbiter" ? config.bits :
+        config.type === "sram" ? config.bits : Math.floor(config.bits / 2);
+    const workload = bitsPerReading * config.devices * config.trials * config.challenges;
+    if (workload > 10000000) {
+        throw new RangeError("Workload exceeds 10 million simulated bit operations; reduce settings");
+    }
 }
 
 function analyze(config) {
@@ -196,6 +202,6 @@ if (typeof document !== "undefined") {
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
 }
