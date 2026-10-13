@@ -1,236 +1,125 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puf Physically Unclonable Engine — Operations Console</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #090d16;
-            --card: #111827;
-            --border: #1f293d;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.25);
-            --text: #f3f4f6;
-            --text-muted: #9ca3af;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            padding: 2rem;
-            min-height: 100vh;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .header-title h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
-        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }
-        .badge {
-            display: inline-block;
-            padding: 0.3rem 0.8rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: var(--accent-glow);
-            color: var(--accent);
-            border: 1px solid var(--accent);
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
-            gap: 1.5rem;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-        .card h2 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .form-group { margin-bottom: 1rem; }
-        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
-        input, select, textarea {
-            width: 100%;
-            padding: 0.65rem 0.9rem;
-            background: #0d1322;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: #fff;
-            font-family: inherit;
-            font-size: 0.9rem;
-        }
-        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-        .btn {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.7rem 1.4rem;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-            width: 100%;
-        }
-        .btn:hover { background: #2563eb; }
-        .terminal {
-            background: #060911;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: #10b981;
-            height: 380px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-        .metrics-bar {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .metric-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-        }
-        .metric-val { font-size: 1.4rem; font-weight: 700; color: #fff; margin-top: 0.25rem; }
-        .metric-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local, reproducible educational simulation of SRAM, arbiter and ring-oscillator physically unclonable functions.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>PUF Simulation Lab</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1220; --card:#111d30; --line:#2e3e53; --txt:#f3f6fa; --muted:#b8c6d9; --accent:#85bdff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--txt); font:16px/1.5 system-ui,-apple-system,sans-serif; }
+    main { width:min(1080px,calc(100% - 32px)); margin:36px auto 72px; }
+    header { display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:28px; }
+    h1 { margin:0 0 8px; font-size:clamp(1.8rem,3.5vw,2.6rem); line-height:1.12; }
+    h2 { margin:0 0 18px; font-size:1.16rem; }
+    p { margin:6px 0; }
+    .muted { color:var(--muted); }
+    .tag { align-self:flex-start; background:#173049; color:#cde6ff; border:1px solid #386186; border-radius:999px; padding:5px 12px; font-size:.83rem; }
+    .grid { display:grid; grid-template-columns:minmax(290px,0.98fr) minmax(0,1.02fr); gap:20px; align-items:start; }
+    .card { padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--card); }
+    .inputs { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .wide { grid-column:1/-1; }
+    label { display:block; margin-bottom:6px; color:#d8e3f2; font-size:.9rem; font-weight:600; }
+    input,select { width:100%; min-height:44px; border:1px solid #52647a; border-radius:8px; color:#fff; background:#0a1525; padding:10px 12px; font:inherit; }
+    input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+    small { display:block; margin-top:5px; font-size:.79rem; color:var(--muted); }
+    button { border:0; border-radius:8px; padding:12px 15px; min-height:44px; font:inherit; font-weight:700; cursor:pointer; }
+    button.primary { background:#8cc4ff; color:#081426; }
+    button.secondary { background:#253951; color:white; border:1px solid #587491; }
+    button:disabled { opacity:.52; cursor:not-allowed; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+    .statgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; }
+    .stat { border:1px solid var(--line); border-radius:10px; padding:16px; background:#0b1728; }
+    .stat span { display:block; color:var(--muted); font-size:.84rem; }
+    .stat strong { display:block; margin-top:8px; font-size:1.65rem; font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+    .stat.single { grid-column:1/-1; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#081322; border:1px solid var(--line); padding:14px; border-radius:8px; font-size:.85rem; }
+    .note { margin-top:22px; padding:18px 20px; border-left:3px solid #8cc4ff; background:#101f33; color:#d2deee; border-radius:0 10px 10px 0; }
+    a { color:#9dcdff; }
+    footer { font-size:.86rem; margin-top:28px; color:var(--muted); }
+    @media (max-width:800px) { main { margin-top:22px; } .grid { grid-template-columns:1fr; } }
+    @media (max-width:480px) { .card { padding:17px; } .inputs { grid-template-columns:1fr; } .statgrid { grid-template-columns:1fr; } .stat.single { grid-column:auto; } }
+  </style>
+  <script src="./app.js" defer></script>
 </head>
 <body>
-
-    <div class="header">
-        <div class="header-title">
-            <h1>Puf Physically Unclonable Engine</h1>
-            <p>Domain: Clinical & Cryptographic AI | Standard: CAP / CLSI / NIST Standards | LabMind-Atlas Architecture</p>
-        </div>
-        <div>
-            <span class="badge">Air-Gapped Active</span>
-            <span class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; border-color: #10b981;">Zero-PHI Guard Active</span>
-        </div>
+<main>
+  <header>
+    <div>
+      <h1>PUF Simulation Lab</h1>
+      <p class="muted">SRAM · Arbiter · Ring-oscillator models</p>
     </div>
-
-    <div class="metrics-bar">
-        <div class="metric-box">
-            <div class="metric-label">System Status</div>
-            <div class="metric-val" style="color: var(--success);" id="m-status">OPTIMAL</div>
+    <span class="tag">Client-side · No server or data upload</span>
+  </header>
+  <div class="grid">
+    <section class="card" aria-labelledby="setup-heading">
+      <h2 id="setup-heading">Simulation parameters</h2>
+      <form id="sim-form">
+        <div class="inputs">
+          <div class="wide">
+            <label for="type">PUF architecture</label>
+            <select id="type">
+              <option value="sram">SRAM power-up</option>
+              <option value="arbiter">Arbiter delay race</option>
+              <option value="ring_oscillator">Ring-oscillator comparison</option>
+            </select>
+          </div>
+          <div>
+            <label for="bits">Cells / stages / oscillators</label>
+            <input id="bits" type="number" min="32" max="1024" step="1" value="256" required>
+          </div>
+          <div>
+            <label for="devices">Devices</label>
+            <input id="devices" type="number" min="2" max="20" step="1" value="5" required>
+          </div>
+          <div>
+            <label for="noise">Noise amplitude</label>
+            <input id="noise" type="number" min="0" max="0.25" step="0.001" value="0.02" required>
+            <small>Bit flip probability for SRAM; scaled delay/frequency perturbation for other models</small>
+          </div>
+          <div>
+            <label for="trials">Repeated readings</label>
+            <input id="trials" type="number" min="2" max="100" step="1" value="30" required>
+          </div>
+          <div>
+            <label for="challenges">Challenge samples</label>
+            <input id="challenges" type="number" min="1" max="100" step="1" value="30" required>
+          </div>
+          <div>
+            <label for="seed">Reproducibility seed</label>
+            <input id="seed" type="text" maxlength="100" value="puf-demo-001" required>
+          </div>
         </div>
-        <div class="metric-box">
-            <div class="metric-label">Tasks Processed</div>
-            <div class="metric-val" id="m-tasks">142</div>
+        <div class="actions">
+          <button class="primary" id="run" type="submit">Run simulation</button>
+          <button class="secondary" id="download" type="button" disabled>Export JSON</button>
         </div>
-        <div class="metric-box">
-            <div class="metric-label">Audit Blocks Signed</div>
-            <div class="metric-val" id="m-audit">142</div>
+      </form>
+    </section>
+    <section class="card" aria-labelledby="output-heading">
+      <h2 id="output-heading">Results</h2>
+      <p id="message" class="muted" role="status" aria-live="polite">Choose settings and run a simulation. No sample data is precomputed.</p>
+      <div id="results" hidden>
+        <div class="statgrid">
+          <div class="stat"><span>Bit error rate (reliability)</span><strong id="ber">—</strong></div>
+          <div class="stat"><span>Inter-device Hamming distance (uniqueness)</span><strong id="uniqueness">—</strong></div>
+          <div class="stat single"><span>Total measured response bits</span><strong id="samples">—</strong></div>
         </div>
-        <div class="metric-box">
-            <div class="metric-label">PHI Interceptions</div>
-            <div class="metric-val" style="color: var(--accent);" id="m-phi">0</div>
-        </div>
-    </div>
-
-    <div class="grid">
-        <div class="card">
-            <h2>⚙️ Dispatch Distributed Component Audit</h2>
-            <div class="form-group">
-                <label>Task / Sample ID</label>
-                <input type="text" id="task_id" value="TASK-2026-LIVE-01">
-            </div>
-            <div class="form-group">
-                <label>Target Identifier</label>
-                <input type="text" id="target_id" value="SPECIMEN-ALPHA-77">
-            </div>
-            <div class="form-group">
-                <label>Primary Measurement / Value</label>
-                <input type="number" id="primary_metric" value="29.4" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Secondary Metric / Kinetic Index</label>
-                <input type="number" id="secondary_metric" value="14.8" step="0.1">
-            </div>
-            <div class="form-group">
-                <label>Status / Phenotype Descriptor</label>
-                <input type="text" id="status_descriptor" value="DISCORDANT_ANOMALY">
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="is_critical" checked> Trigger Emergency / Critical Flag</label>
-            </div>
-            <button class="btn" onclick="runAudit()">Execute Distributed Component Audit</button>
-        </div>
-
-        <div class="card">
-            <h2>📊 Real-Time Consensus Dossier & Audit Log</h2>
-            <div class="terminal" id="outputConsole">// Puf Physically Unclonable Engine Operations Console Ready
-// Connection established with Air-Gapped Supervisor
-// Cryptographic HMAC-SHA256 audit ledger loaded.
-// Ready for live task payload dispatch...</div>
-        </div>
-    </div>
-
-    <script>
-        async function runAudit() {
-            const consoleEl = document.getElementById('outputConsole');
-            consoleEl.innerText = "// Dispatching task across specialized workers...
-// Invoking InvariantQCWorker, SafetyEscalationWorker, ProtocolWorker...";
-
-            const payload = {
-                task_id: document.getElementById('task_id').value,
-                target_identifier: document.getElementById('target_id').value,
-                primary_metric: parseFloat(document.getElementById('primary_metric').value),
-                secondary_metric: parseFloat(document.getElementById('secondary_metric').value),
-                status_descriptor: document.getElementById('status_descriptor').value,
-                is_critical_flag: document.getElementById('is_critical').checked
-            };
-
-            try {
-                const res = await fetch('/api/audit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                consoleEl.innerText = JSON.stringify(data, null, 2);
-                document.getElementById('m-tasks').innerText = parseInt(document.getElementById('m-tasks').innerText) + 1;
-                document.getElementById('m-audit').innerText = parseInt(document.getElementById('m-audit').innerText) + 1;
-            } catch (err) {
-                consoleEl.innerText = "// Offline / Simulation Output:\n" + JSON.stringify({
-                    dossier_id: "DOSSIER-SIM-" + Math.floor(Math.random()*10000),
-                    system: "puf-physically-unclonable-engine",
-                    domain: "Clinical & Cryptographic AI",
-                    task_id: payload.task_id,
-                    overall_urgency: payload.is_critical_flag ? "CRITICAL_STAT_PANIC" : "ELEVATED_RISK",
-                    integrity_status: "DISCORDANT_ANOMALY",
-                    alerts: [
-                        { worker: "InvariantQCWorker", alert: "Primary metric exceeds upper reference bound" },
-                        { worker: "SafetyEscalationWorker", alert: "Critical emergency interlock flag active" }
-                    ],
-                    audit_hash: "HMAC_SHA256_e83f9a72b941d6c381f9"
-                }, null, 2);
-            }
-        }
-    </script>
+        <h2 style="margin-top:24px">First reference response (up to 64 bits)</h2>
+        <pre id="preview"></pre>
+      </div>
+      <div class="note">
+        <strong>Interpretation</strong>
+        <p>For an ideal balanced population, mean inter-device Hamming distance approaches 50%. A lower measured bit error rate indicates higher repeatability. Both statistics are simulation outputs, not certification results.</p>
+      </div>
+    </section>
+  </div>
+  <footer>
+    The models use deterministic non-cryptographic pseudorandom numbers for reproducibility. Do not use the outputs for authentication, key generation, hardware qualification, or compliance claims.
+    <a href="https://github.com/abusuraihsakhri/puf-physically-unclonable-agent" rel="noopener noreferrer">Source repository</a>.
+  </footer>
+</main>
 </body>
 </html>
