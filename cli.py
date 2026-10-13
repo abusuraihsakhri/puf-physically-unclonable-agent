@@ -83,9 +83,11 @@ def cmd_crp(args):
             response = [puf.evaluate(challenge)]
         else:
             challenge = [secrets.randbelow(2) for _ in range(args.bits)]
-            pairs = [(challenge[j] % puf.num_oscillators,
-                       challenge[j+1] % puf.num_oscillators)
-                      for j in range(0, len(challenge)-1, 2)]
+            pairs = []
+            for j in range(0, len(challenge) - 1, 2):
+                a = j % puf.num_oscillators
+                b = (j + 1) % puf.num_oscillators
+                pairs.append((b, a) if challenge[j] else (a, b))
             response = puf.evaluate_challenge(pairs)
         db.enroll(challenge, response)
 
