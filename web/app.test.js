@@ -42,7 +42,8 @@ test("invalid settings fail before simulation", () => {
     for (const patch of [
         { bits: 0 }, { devices: 1 }, { trials: 1 },
         { challenges: 101 }, { noise: -0.1 }, { noise: Infinity },
-        { type: "unknown" }, { seed: "x".repeat(101) }
+        { type: "unknown" }, { seed: "x".repeat(101) },
+        { bits: 1024, devices: 20, trials: 100, challenges: 100 }
     ]) {
         assert.throws(() => analyze({ ...base, ...patch }), RangeError);
     }
