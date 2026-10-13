@@ -15,6 +15,8 @@ class FrontierDomainEngine:
 
     @classmethod
     def evaluate_primary_parameter(cls, value: float) -> Optional[Dict[str, Any]]:
+        if not math.isfinite(value):
+            raise ValueError("Primary metric must be finite")
         if value > cls.PRIMARY_BOUND:
             return {
                 "summary": "Primary Domain Boundary Deviation",
@@ -25,6 +27,8 @@ class FrontierDomainEngine:
 
     @classmethod
     def evaluate_secondary_kinetics(cls, value: float, is_critical: bool) -> Optional[Dict[str, Any]]:
+        if not math.isfinite(value):
+            raise ValueError("Secondary metric must be finite")
         if value > cls.SECONDARY_BOUND or is_critical:
             return {
                 "summary": "Critical Domain Condition Triggered",
