@@ -97,3 +97,11 @@ def test_audit_signature_verification_detects_tampering():
     assert trail.verify_integrity()  # callers cannot alter stored blocks
     trail.logs[0]["actor"] = "intruder"
     assert not trail.verify_integrity()
+
+
+def test_mock_provider_is_not_misrepresented_as_live_inference():
+    from agents.llm_factory import LLMFactory
+    responder = LLMFactory.create("mock")
+    assert "No model inference" in responder.invoke("status")
+    with pytest.raises(ValueError, match="Unsupported provider"):
+        LLMFactory.create("openai")
