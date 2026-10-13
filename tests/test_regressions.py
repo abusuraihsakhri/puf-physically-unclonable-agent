@@ -119,3 +119,12 @@ def test_identifier_guard_blocks_known_patterns():
     from agents.base import PHIGuard, SecurityException
     with pytest.raises(SecurityException):
         PHIGuard.assert_no_phi("MRN:123456")
+
+
+def test_audit_fields_cannot_be_reassigned_across_delimiters():
+    trail = AuditTrail(secret_key="test-not-production")
+    trail.log("a|b", "c", "event", {"outcome": "ok"})
+    assert trail.verify_integrity()
+    trail.logs[0]["actor"] = "a"
+    trail.logs[0]["actor_tier"] = "b|c"
+    assert not trail.verify_integrity()
